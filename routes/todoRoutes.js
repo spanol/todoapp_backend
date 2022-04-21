@@ -5,7 +5,7 @@ const {
   createTodo,
   updateTodo,
   deleteTodo,
-} = require("../controllers/goalController");
+} = require("../controllers/todoController");
 
 const { protect } = require("../middleware/authMiddleware");
 
