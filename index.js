@@ -1,110 +1,32 @@
-const express = require("express");
-const dotenv = require("dotenv").config();
-const cors = require("cors");
-const mongoose = require("mongoose");
-const app = express();
-const port = process.env.PORT || 5000;
+const express = require('express')
+const colors = require('colors')
+const dotenv = require('dotenv').config()
+const { errorHandler } = require('./middleware/errorMiddleware')
+const connectDB = require('./config/db')
+const port = process.env.PORT || 5000
 
-// const ObjectId = require("mongoose").Types.ObjectId;
+connectDB()
 
-mongoose.connect(process.env.MONGODB, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+const app = express()
 
-app.use(cors());
-app.use(express.json());
+app.use(express.json())
+app.use(express.urlencoded({ extended: false }))
 
-const userSchema = new mongoose.Schema({
-  username: String,
-  password: String,
-});
-const User = mongoose.model("User", userSchema);
+app.use('/api/todos', require('./routes/todoRoutes'))
+app.use('/api/users', require('./routes/userRoutes'))
 
-const todosSchema = new mongoose.Schema({
-  userId: mongoose.Schema.ObjectId,
-  todos: [
-    {
-      content: String,
-      isCompleted: Boolean,
-      createdAt: String,
-      priority: String,
-    },
-  ],
-});
-const Todos = mongoose.model("Todos", todosSchema);
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/build')))
 
-app.post("/register", async (req, res) => {
-  const { username, password } = req.body;
-  const user = await User.findOne({ username }).exec();
-  if (user) {
-    res.status(500);
-    res.json({ message: "User already exists" });
-    return;
-  }
-  await User.create({ username, password });
-  res.json({
-    message: "User created successfully",
-  });
-});
+  app.get('*', (req, res) =>
+    res.sendFile(
+      path.resolve(__dirname, '../', 'frontend', 'build', 'index.html')
+    )
+  )
+} else {
+  app.get('/', (req, res) => res.send('Please set to production'))
+}
 
-app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
-  const user = await User.findOne({ username }).exec();
-  if (!user || user.password !== password) {
-    res.status(403);
-    res.json({ message: "Invalid login" });
-    return;
-  }
-  res.json({
-    message: "Logged successfully",
-  });
-});
+app.use(errorHandler)
 
-app.post("/todos", async (req, res) => {
-  const { authorization } = req.headers;
-  const [, token] = authorization.split(" ");
-  const [username, password] = token.split(":");
-  const todosItems = req.body;
-  const user = await User.findOne({ username }).exec();
-  if (!user || user.password != password) {
-    res.status(403);
-    res.json({ message: "Invalid login" });
-    return;
-  }
-  const todos = await Todos.findOne({ userId: user._id }).exec();
-  if (!todos) {
-    await Todos.create({
-      userId: user._id,
-      todos: todosItems,
-    });
-  } else {
-    todos.todos = todosItems;
-    await todos.save();
-  }
-  res.json(todosItems);
-});
-
-app.get("/todos", async (req, res) => {
-    const { authorization } = req.headers;
-    const [, token] = authorization.split(" ");
-    const [username, password] = token.split(":");
-    const user = await User.findOne({ username }).exec();
-    if (!user || user.password !== password) {
-      res.status(403);
-      res.json({
-        message: "invalid access",
-      });
-      return;
-    }
-    const { todos } = await Todos.findOne({ userId: user._id }).exec();
-    res.json(todos);
-  });
-  
-
-const db = mongoose.connection;
-db.on("error", console.error.bind(console, "connection error:"));
-db.once("open", function () {
-  console.log("Connected to MongoDB");
-  app.listen(port, () => console.log(`Listening on port ${port}`));
-});
+app.listen(port, () => console.log(`Server started on port ${port}`))
